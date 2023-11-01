@@ -1,0 +1,15 @@
+# local env files
+.env
+.env*.local
+.env!/
+.idea/
+/node_modules/
+.next/
+.DS_STORE
+
+!/.env.template
+
+certificates
+
+# 프로젝트 제외 경로
+/dummy/

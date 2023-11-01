@@ -1,0 +1,388 @@
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+  // previewFeatures = ["referentialIntergrity"]
+}
+
+// User
+model User {
+  id              Int     @id @default(autoincrement())
+  externalId      String  @unique // userId
+  username        String
+  profileImageUrl String  @db.Text
+  email           Email[]
+
+  // 과제
+  DoTask DoTask[]
+
+  // 게시판
+  Post           Post[]
+  Comment        Comment[]
+  PostLike       PostLike[]
+  PostAttachment PostAttachment[]
+  PostBookmark   PostBookmark[]
+
+  // 캘린더
+  Calendar Calendar[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Email
+model Email {
+  id            String @id @default(uuid())
+  object        String
+  email_address String
+
+  userId String
+  User   User   @relation(fields: [userId], references: [externalId])
+
+  @@index([userId])
+}
+
+// 강의
+model Course {
+  id          String  @id @default(uuid())
+  userId      String
+  title       String  @db.Text
+  description String? @db.Text
+  imageUrl    String? @db.Text
+  isPublished Boolean @default(false)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  chapters    Chapter[]
+  attachments Attachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@fulltext([title])
+}
+
+// 강의 첨부
+model Attachment {
+  id   String @id @default(uuid())
+  name String
+  url  String @db.Text
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+}
+
+// 카테고리
+model Category {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  courses Course[]
+}
+
+// 챕터
+model Chapter {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.Text
+  videoUrl    String? @db.Text
+  position    Int
+  isPublished Boolean @default(false)
+
+  muxData MuxData?
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  userProgress UserProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+}
+
+// MuxData
+model MuxData {
+  id         String  @id @default(uuid())
+  assetId    String
+  playbackId String?
+
+  chapterId String  @unique
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+// 강의 진척도
+model UserProgress {
+  id     String @id @default(uuid())
+  userId String
+
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  isCompleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, chapterId])
+  @@index([chapterId])
+}
+
+// TaskDB
+// 과제
+model Task {
+  id          String  @id @default(uuid())
+  userId      String
+  title       String  @db.Text
+  description String? @db.Text
+  imageUrl    String? @db.Text
+  isPublished Boolean @default(false)
+
+  deadline DateTime?
+
+  taskAttachments TaskAttachment[]
+  DoTask          DoTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@fulltext([title])
+}
+
+// 과제 첨부 파일(관리자)
+model TaskAttachment {
+  id   String @id @default(uuid())
+  name String
+  url  String @db.Text
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId])
+}
+
+// 과제 제출
+model DoTask {
+  id          String  @id @default(uuid())
+  description String  @db.Text
+  isPublished Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  DoTaskAttachment DoTaskAttachment[]
+  TaskProgress     TaskProgress[]
+  DoTaskScore      DoTaskScore[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([taskId])
+}
+
+// 일반 유저가 올리는 첨부 파일
+model DoTaskAttachment {
+  id   String @id @default(uuid())
+  name String
+  url  String @db.Text
+
+  doTaskId String
+  doTask   DoTask @relation(fields: [doTaskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doTaskId])
+}
+
+// 과제 점수
+model DoTaskScore {
+  id      String  @id @default(uuid())
+  score   Int
+  comment String? @db.Text
+
+  doTaskId String
+  doTask   DoTask @relation(fields: [doTaskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doTaskId])
+}
+
+// 과제 진척도
+model TaskProgress {
+  id     String @id @default(uuid())
+  userId String
+
+  doTaskId String // 과제 진척도가 어떤 과제에 속하는지 나타내는 필드
+  doTask   DoTask @relation(fields: [doTaskId], references: [id], onDelete: Cascade)
+
+  isCompleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, doTaskId])
+  @@index([doTaskId])
+}
+
+// Board DB
+// 게시판
+model Board {
+  id   String @id @default(uuid())
+  name String @unique // 게시판 이름 (예: "자유게시판", "질문게시판" 등)
+
+  // 게시글과의 관계
+  posts Post[] // 이 게시판에 속한 게시글 목록
+}
+
+// 게시글
+model Post {
+  id       String  @id @default(uuid())
+  title    String  @db.Text
+  content  String  @db.Text
+  views    Int     @default(0)
+  imageUrl String? @db.Text
+
+  isPublished Boolean @default(true)
+
+  userId String
+  User   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  boardId String // 게시판 ID
+  Board   Board  @relation(fields: [boardId], references: [id])
+
+  PostAttachment PostAttachment[]
+  Comment        Comment[]
+  PostLike       PostLike[]
+  PostBookmark   PostBookmark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([boardId])
+  @@index([userId])
+  @@fulltext([title])
+}
+
+// 게시글 첨부파일
+model PostAttachment {
+  id   String @id @default(uuid())
+  name String
+  url  String @db.Text
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([userId])
+}
+
+// 댓글
+model Comment {
+  id      String  @id @default(uuid())
+  content String  @db.Text
+  url     String? @db.Text
+
+  // 댓글과 유저 간의 관계
+  userId String // 댓글 작성자 (User 테이블의 externalId와 연결)
+  User   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  // 댓글과 게시글 간의 관계
+  postId String // 댓글이 달린 게시글 (Post 테이블의 id와 연결)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([userId])
+}
+
+// 게시물 좋아요
+model PostLike {
+  id String @id @default(uuid()) // 좋아요 ID
+
+  // id Int @id @default(autoincrement())
+
+  isLiked Boolean @default(false)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  userId String // 사용자 ID
+  user   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, userId]) // 각 사용자는 특정 게시물에 대해 한 번만 좋아요를 누를 수 있음
+  @@index([userId])
+  @@index([postId])
+}
+
+// 게시물 즐겨찾기
+model PostBookmark {
+  id String @id @default(uuid())
+
+  isMarked Boolean @default(false)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  userId String // 사용자 ID
+  user   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, userId]) // 각 사용자는 특정 게시물에 대해 한 번만 즐겨찾기를 누를 수 있음
+  @@index([userId])
+  @@index([postId])
+}
+
+// 캘린더
+model Calendar {
+  id    String  @id @default(uuid())
+  title String  @db.Text
+  memo  String? @db.Text
+
+  allDay   Boolean   @default(false)
+  startDay DateTime?
+  endDay   DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [externalId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@fulltext([title])
+}
